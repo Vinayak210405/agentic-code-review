@@ -6,6 +6,7 @@ from src.graph.workflow import create_code_review_graph
 
 router = APIRouter(prefix="/api/v1/webhooks", tags=["Webhooks"])
 
+
 def verify_github_signature(payload_body: bytes, secret: str, signature_header: str) -> bool:
     if not signature_header or not signature_header.startswith("sha256="):
         return False
@@ -16,6 +17,7 @@ def verify_github_signature(payload_body: bytes, secret: str, signature_header: 
     ).hexdigest()
     return hmac.compare_digest(f"sha256={expected_hash}", signature_header)
 
+
 async def run_review_graph_background(initial_state: dict):
     try:
         graph = create_code_review_graph()
@@ -24,6 +26,7 @@ async def run_review_graph_background(initial_state: dict):
         graph.invoke(initial_state, config=config)
     except Exception as e:
         print(f"[Graph Execution Error] {e}")
+
 
 @router.post("/github")
 async def handle_github_webhook(request: Request, background_tasks: BackgroundTasks):
@@ -34,23 +37,26 @@ async def handle_github_webhook(request: Request, background_tasks: BackgroundTa
     if secret and not verify_github_signature(body_bytes, secret, signature):
         raise HTTPException(status_code=401, detail="Invalid webhook HMAC signature")
 
-    event_type = request.headers.get("x-github-event", "ping")
-    
-    # Respond 200 OK to GitHub setup ping
-    if event_type == "ping":
-        return {"msg": "pong", "status": "active"}
-
+    event_type = request.headers.get("x-github-event", "pull_request")
     payload = await request.json()
 
-    if event_type == "pull_request":
-        action = payload.get("action")
-        if action in ["opened", "synchronize", "reopened"]:
-            pr = payload.get("pull_request", {})
-            repo = payload.get("repository", {})
+    # Respond to GitHub ping event
+    if event_type == "ping" and "pull_request" not in payload:
+        return {"status": "ACCEPTED", "message": "Pong", "thread_id": "ping"}
 
+    pr = payload.get("pull_request", {})
+    repo = payload.get("repository", {})
+    repo_name = repo.get("full_name", "")
+    pr_id = pr.get("number", "")
+
+    thread_id = f"{repo_name}:{pr_id}" if repo_name and pr_id else "ping"
+    action = payload.get("action")
+
+    if event_type == "pull_request" or pr:
+        if action in [None, "opened", "synchronize", "reopened"]:
             initial_state = {
-                "pr_id": pr.get("number"),
-                "repo_name": repo.get("full_name"),
+                "pr_id": pr_id,
+                "repo_name": repo_name,
                 "files_changed": [],
                 "security_findings": [],
                 "lint_findings": [],
@@ -59,8 +65,10 @@ async def handle_github_webhook(request: Request, background_tasks: BackgroundTa
                 "human_approved": None,
                 "human_feedback": None
             }
-
             background_tasks.add_task(run_review_graph_background, initial_state)
-            return {"status": "ACCEPTED", "message": f"Review initiated for PR #{pr.get('number')}"}
 
-    return {"status": "IGNORED", "message": f"Event '{event_type}' action '{payload.get('action')}' skipped."}
+    return {
+        "status": "ACCEPTED",
+        "message": f"Webhook '{event_type}' received",
+        "thread_id": thread_id
+    }
