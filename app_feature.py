@@ -6,3 +6,5 @@ def run_user_command(user_input):
 
 def calculate_square(number):
     return number ** 2
+
+# Triggering AI review

@@ -1,92 +1,66 @@
-﻿from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Request, status
-from pydantic import BaseModel
-from typing import Optional
-
+﻿import os
+import hmac
+import hashlib
+from fastapi import APIRouter, Request, HTTPException, BackgroundTasks
 from src.graph.workflow import create_code_review_graph
-from src.services.github_service import parse_github_pr_payload, verify_github_signature
 
-router = APIRouter(prefix="/api/v1", tags=["Webhooks & Reviews"])
-graph_app = create_code_review_graph()
+router = APIRouter(prefix="/api/v1/webhooks", tags=["Webhooks"])
 
+def verify_github_signature(payload_body: bytes, secret: str, signature_header: str) -> bool:
+    if not signature_header or not signature_header.startswith("sha256="):
+        return False
+    expected_hash = hmac.new(
+        secret.encode("utf-8"),
+        payload_body,
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(f"sha256={expected_hash}", signature_header)
 
-class HumanApprovalRequest(BaseModel):
-    thread_id: str
-    approved: bool
-    feedback: Optional[str] = "Approved via API Endpoint"
+async def run_review_graph_background(initial_state: dict):
+    try:
+        graph = create_code_review_graph()
+        thread_id = f"{initial_state['repo_name']}:{initial_state['pr_id']}"
+        config = {"configurable": {"thread_id": thread_id}}
+        graph.invoke(initial_state, config=config)
+    except Exception as e:
+        print(f"[Graph Execution Error] {e}")
 
-
-def run_pipeline_task(initial_state: dict, thread_config: dict):
-    """Background task function to stream state graph execution without blocking HTTP responses."""
-    print(f"\n[Async Pipeline] Starting review thread: {thread_config['configurable']['thread_id']}")
-    for event in graph_app.stream(initial_state, thread_config):
-        for node_name, output in event.items():
-            print(f"[Async Pipeline] Completed Node: '{node_name}'")
-
-
-@router.post("/webhooks/github")
-async def github_webhook_listener(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    x_hub_signature_256: Optional[str] = Header(None)
-):
-    """Receives incoming GitHub pull request webhooks and triggers the LangGraph review pipeline."""
+@router.post("/github")
+async def handle_github_webhook(request: Request, background_tasks: BackgroundTasks):
     body_bytes = await request.body()
+    secret = os.getenv("GITHUB_WEBHOOK_SECRET")
+    signature = request.headers.get("x-hub-signature-256")
 
-    # Step 1: Verify HMAC Security Header
-    if not verify_github_signature(body_bytes, x_hub_signature_256 or ""):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid HMAC signature."
-        )
+    if secret and not verify_github_signature(body_bytes, secret, signature):
+        raise HTTPException(status_code=401, detail="Invalid webhook HMAC signature")
+
+    event_type = request.headers.get("x-github-event", "ping")
+    
+    # Respond 200 OK to GitHub setup ping
+    if event_type == "ping":
+        return {"msg": "pong", "status": "active"}
 
     payload = await request.json()
-    action = payload.get("action", "")
 
-    # Process pull request events ('opened', 'synchronize', or test trigger)
-    if action in ["opened", "synchronize", "reopened", "test"]:
-        state_payload = parse_github_pr_payload(payload)
-        thread_id = f"{state_payload['repo_name']}:{state_payload['pr_id']}"
-        thread_config = {"configurable": {"thread_id": thread_id}}
+    if event_type == "pull_request":
+        action = payload.get("action")
+        if action in ["opened", "synchronize", "reopened"]:
+            pr = payload.get("pull_request", {})
+            repo = payload.get("repository", {})
 
-        # Run pipeline asynchronously in background
-        background_tasks.add_task(run_pipeline_task, state_payload, thread_config)
+            initial_state = {
+                "pr_id": pr.get("number"),
+                "repo_name": repo.get("full_name"),
+                "files_changed": [],
+                "security_findings": [],
+                "lint_findings": [],
+                "generated_tests": [],
+                "status": "PROCESSING",
+                "human_approved": None,
+                "human_feedback": None
+            }
 
-        return {
-            "status": "ACCEPTED",
-            "message": f"Code review pipeline initiated for PR #{state_payload['pr_id']}",
-            "thread_id": thread_id
-        }
+            background_tasks.add_task(run_review_graph_background, initial_state)
+            return {"status": "ACCEPTED", "message": f"Review initiated for PR #{pr.get('number')}"}
 
-    return {"status": "IGNORED", "message": f"Ignored action '{action}'"}
-
-
-@router.post("/review/approve")
-async def approve_code_review(approval: HumanApprovalRequest, background_tasks: BackgroundTasks):
-    """Resumes a paused review thread post-human intervention."""
-    thread_config = {"configurable": {"thread_id": approval.thread_id}}
-
-    # Verify existing checkpoint thread
-    current_state = graph_app.get_state(thread_config)
-    if not current_state.values:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Thread '{approval.thread_id}' not found."
-        )
-
-    # Step 1: Update graph state with human approval decision
-    graph_app.update_state(
-        thread_config,
-        {
-            "human_approved": approval.approved,
-            "human_feedback": approval.feedback
-        }
-    )
-
-    # Step 2: Resume graph execution in background
-    background_tasks.add_task(run_pipeline_task, None, thread_config)
-
-    return {
-        "status": "RESUMED",
-        "message": f"Review thread '{approval.thread_id}' updated and resumed.",
-        "decision": "APPROVED" if approval.approved else "REJECTED"
-    }
+    return {"status": "IGNORED", "message": f"Event '{event_type}' action '{payload.get('action')}' skipped."}
