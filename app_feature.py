@@ -1,10 +1,11 @@
-﻿import os
+﻿import subprocess
 
-def run_user_command(user_input):
-    # Intentional command injection risk for agent testing
-    os.system(f"echo Executing: {user_input}")
 
-def calculate_square(number):
-    return number ** 2
+def run_user_command(user_input: str) -> None:
+    """Executes ping safely without shell injection vulnerability."""
+    if not user_input or not isinstance(user_input, str):
+        raise ValueError("Invalid user input provided.")
 
-# Triggering AI review
+    # Replaces os.system(f"ping -c 1 {user_input}")
+    # Safe argument array bypasses the system shell parser entirely
+    subprocess.run(["ping", "-c", "1", user_input], check=True)
