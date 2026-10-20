@@ -1,55 +1,40 @@
-﻿import os
-from typing import Any, Dict, List
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
+﻿from typing import Dict, Any
+from langchain_groq import ChatGroq
 
-from src.graph.state import CodeReviewState, LintFinding
-from src.rag.vector_store import query_security_standards
+llm = ChatGroq(
+    model_name="openai/gpt-oss-120b",
+    temperature=0,
+    max_retries=5,
+)
 
-def linter_node(state: CodeReviewState) -> Dict[str, Any]:
-    print(f"[Agent: Linter & Quality] Checking style and performance for PR #{state['pr_id']}...")
-    findings: List[LintFinding] = []
-    openai_key = os.getenv("OPENAI_API_KEY")
 
-    for file in state.get("files_changed", []):
-        filename = file.get("filename", "")
+def linter_node(state: Dict[str, Any]) -> Dict[str, Any]:
+    files = state.get("files_changed", [])
+    findings = list(state.get("lint_findings", []))
+
+    if not files:
+        findings.append("No file diffs provided for linting.")
+        return {"lint_findings": findings}
+
+    for file in files:
+        filename = file.get("filename", "unknown")
         patch = file.get("patch", "")
+
         if not patch:
             continue
 
-        rag_context = query_security_standards(f"Linter standards for {filename}")
+        prompt = f"""
+You are a senior Code Quality Auditor and Linter.
+Review the following code diff for software best practices, readability, code smells, missing docstrings, and potential performance bottlenecks.
 
-        if not openai_key:
-            if "for " in patch and (".execute(" in patch or ".query(" in patch):
-                findings.append({
-                    "file_path": filename,
-                    "line_number": 14,
-                    "issue": "N+1 Database Query Pattern Detected.",
-                    "suggestion": "Fetch related records using bulk queries or eager loading outside the loop."
-                })
-            if "except:" in patch:
-                findings.append({
-                    "file_path": filename,
-                    "line_number": 20,
-                    "issue": "Bare except clause used.",
-                    "suggestion": "Catch specific exceptions (e.g., catching ValueError) to prevent masking bugs."
-                })
-            continue
+File: {filename}
 
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-        prompt = ChatPromptTemplate.from_template(
-            "You are a Senior Software Engineer conducting code quality linting.\n"
-            "Coding Standards:\n{rag_context}\n\n"
-            "Review this diff for '{filename}':\n```\n{patch}\n```\n"
-            "List issues regarding PEP8, performance, or exceptions."
-        )
-        chain = prompt | llm
-        response = chain.invoke({"rag_context": rag_context, "filename": filename, "patch": patch})
-        findings.append({
-            "file_path": filename,
-            "line_number": 1,
-            "issue": "Code quality review point.",
-            "suggestion": response.content[:200]
-        })
+Diff Patch:
+{patch}
+
+Provide concise, bulleted feedback on code structure, styling, and logic improvements.
+"""
+        response = llm.invoke(prompt)
+        findings.append(f"### Linting & Quality Review for `{filename}`\n{response.content}")
 
     return {"lint_findings": findings}

@@ -1,52 +1,41 @@
-﻿import os
-from typing import Any, Dict, List
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
+﻿from typing import Dict, Any
+from langchain_groq import ChatGroq
 
-from src.graph.state import CodeReviewState, GeneratedTest
+llm = ChatGroq(
+    model_name="openai/gpt-oss-120b",
+    temperature=0,
+    max_retries=5,
+)
 
-def test_generator_node(state: CodeReviewState) -> Dict[str, Any]:
-    print(f"[Agent: Test Generator] Constructing unit tests for PR #{state['pr_id']}...")
-    generated_tests: List[GeneratedTest] = []
-    openai_key = os.getenv("OPENAI_API_KEY")
 
-    for file in state.get("files_changed", []):
-        filename = file.get("filename", "")
+def test_generator_node(state: Dict[str, Any]) -> Dict[str, Any]:
+    files = state.get("files_changed", [])
+    generated_tests = list(state.get("generated_tests", []))
+
+    if not files:
+        generated_tests.append("No file diffs provided for test generation.")
+        return {"generated_tests": generated_tests}
+
+    for file in files:
+        filename = file.get("filename", "unknown")
         patch = file.get("patch", "")
+
         if not patch:
             continue
 
-        test_file_path = f"tests/test_{os.path.basename(filename)}"
+        prompt = f"""
+You are an automated Test Engineering Agent.
+Construct modular unit tests using `pytest` to validate newly added or modified logic in this code diff.
 
-        if not openai_key:
-            test_code = (
-                "import pytest\n\n"
-                f"# Generated test suite for {filename}\n"
-                "def test_modified_function_success():\n"
-                "    assert True\n\n"
-                "def test_modified_function_invalid_input():\n"
-                "    with pytest.raises(ValueError):\n"
-                "        raise ValueError('Invalid argument')\n"
-            )
-            generated_tests.append({
-                "target_file": filename,
-                "test_file_path": test_file_path,
-                "test_code": test_code
-            })
-            continue
+File: {filename}
 
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
-        prompt = ChatPromptTemplate.from_template(
-            "You are an Automated Test Engineer specializing in PyTest.\n"
-            "Write a complete PyTest module for '{filename}':\n```\n{patch}\n```\n"
-            "Return ONLY executable Python code."
-        )
-        chain = prompt | llm
-        response = chain.invoke({"filename": filename, "patch": patch})
-        generated_tests.append({
-            "target_file": filename,
-            "test_file_path": test_file_path,
-            "test_code": response.content
-        })
+Diff Patch:
+{patch}
+
+Provide runnable Python unit tests covering edge cases and core function behavior.
+Format response with executable python code blocks (` ```python ... ``` `).
+"""
+        response = llm.invoke(prompt)
+        generated_tests.append(f"### Unit Tests for `{filename}`\n{response.content}")
 
     return {"generated_tests": generated_tests}

@@ -1,51 +1,99 @@
 ﻿import os
-from typing import Any, Dict, List
-from github import Github
+import requests
+from typing import Dict, Any, List, Optional
+
+
+def format_review_comment(
+    security_findings: Optional[List[Any]] = None,
+    lint_findings: Optional[List[Any]] = None,
+    generated_tests: Optional[List[Any]] = None,
+) -> str:
+    """Formats findings and generated tests into a Markdown PR comment."""
+    security_findings = security_findings or []
+    lint_findings = lint_findings or []
+    generated_tests = generated_tests or []
+
+    comment_parts = ["## 🤖 Automated Agentic Code Review\n"]
+
+    if security_findings:
+        comment_parts.append("### 🛡️ Security Audit Findings\n")
+        for item in security_findings:
+            if isinstance(item, dict):
+                comment_parts.append(
+                    f"- **[{item.get('severity', 'INFO')}]**: {item.get('description', item.get('content', str(item)))}\n"
+                )
+            else:
+                comment_parts.append(f"{item}\n")
+
+    if lint_findings:
+        comment_parts.append("\n### 🧹 Lint & Code Quality\n")
+        for item in lint_findings:
+            if isinstance(item, dict):
+                comment_parts.append(f"- {item.get('description', item.get('content', str(item)))}\n")
+            else:
+                comment_parts.append(f"{item}\n")
+
+    if generated_tests:
+        comment_parts.append("\n### 🧪 Generated Pytest Unit Tests\n")
+        for item in generated_tests:
+            if isinstance(item, dict):
+                comment_parts.append(f"```python\n{item.get('code', str(item))}\n```\n")
+            else:
+                comment_parts.append(f"{item}\n")
+
+    # Clean null characters and guarantee non-empty body
+    result = "\n".join(comment_parts).replace("\x00", "")
+    if not result.strip():
+        result = "## 🤖 Automated Agentic Code Review\n\nNo significant findings or issues detected."
+
+    return result
+
 
 def publish_review_to_github(
-    pr_id: int,
-    repo_name: str,
-    security_findings: List[Dict[str, Any]],
-    lint_findings: List[Dict[str, Any]],
-    generated_tests: List[Dict[str, Any]],
-    status: str
-) -> bool:
-    """Posts compiled security, lint, and test suite findings directly to the GitHub PR as a comment."""
-    github_token = os.getenv("GITHUB_TOKEN")
-    if not github_token:
+    state: Optional[Dict[str, Any]] = None,
+    pr_id: Optional[int] = None,
+    repo_name: Optional[str] = None,
+    security_findings: Optional[List[Any]] = None,
+    lint_findings: Optional[List[Any]] = None,
+    generated_tests: Optional[List[Any]] = None,
+    status: Optional[str] = "COMPLETED",
+    **kwargs,
+) -> Dict[str, Any]:
+    """Posts the formatted review comment to GitHub PR comments via REST API."""
+    if state and isinstance(state, dict):
+        pr_id = pr_id or state.get("pr_id")
+        repo_name = repo_name or state.get("repo_name")
+        security_findings = security_findings if security_findings is not None else state.get("security_findings", [])
+        lint_findings = lint_findings if lint_findings is not None else state.get("lint_findings", [])
+        generated_tests = generated_tests if generated_tests is not None else state.get("generated_tests", [])
+
+    token = os.getenv("GITHUB_TOKEN")
+
+    print(f"\n[Action Layer] Publishing results to GitHub PR #{pr_id}...")
+
+    if not token or token == "your_github_token":
         print(f"[GitHub Publisher] No GITHUB_TOKEN configured. Dry-run completed for PR #{pr_id}.")
-        return False
+        return {"status": "COMPLETED"}
+
+    body = format_review_comment(
+        security_findings=security_findings,
+        lint_findings=lint_findings,
+        generated_tests=generated_tests,
+    )
+
+    url = f"https://api.github.com/repos/{repo_name}/issues/{pr_id}/comments"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github.v3+json",
+    }
 
     try:
-        g = Github(github_token)
-        repo = g.get_repo(repo_name)
-        pr = repo.get_pull(pr_id)
-
-        comment_md = "## 🤖 Autonomous Agentic Code Review Report\n\n"
-        comment_md += f"**Review Decision:** `{status}`\n\n"
-
-        if security_findings:
-            comment_md += "### 🛡️ Security Vulnerabilities\n"
-            for sf in security_findings:
-                comment_md += f"- **[{sf.get('severity')}]** `{sf.get('rule_id')}` in `{sf.get('file_path')}` (Line {sf.get('line_number')})\n"
-                comment_md += f"  - **Issue:** {sf.get('description')}\n"
-                comment_md += f"  - **Mitigation:** {sf.get('mitigation')}\n\n"
-
-        if lint_findings:
-            comment_md += "### 🧹 Code Quality & Style Analysis\n"
-            for lf in lint_findings:
-                comment_md += f"- `{lf.get('file_path')}` (Line {lf.get('line_number')}): {lf.get('issue')}\n"
-                comment_md += f"  - **Suggestion:** {lf.get('suggestion')}\n\n"
-
-        if generated_tests:
-            comment_md += "### 🧪 Automated Unit Test Recommendations\n"
-            for gt in generated_tests:
-                comment_md += f"<details><summary>Click to view PyTest suite for <code>{gt.get('target_file')}</code></summary>\n\n"
-                comment_md += f"```python\n{gt.get('test_code')}\n```\n</details>\n\n"
-
-        pr.create_issue_comment(comment_md)
-        print(f"[GitHub Publisher] Published review comment to {repo_name} PR #{pr_id}.")
-        return True
+        response = requests.post(url, json={"body": body}, headers=headers)
+        if response.status_code not in (200, 201):
+            print(f"[GitHub Publisher API Details]: Status {response.status_code} - Response: {response.text}")
+        response.raise_for_status()
+        print(f"[GitHub Publisher] Successfully posted review comment to PR #{pr_id}!")
+        return {"status": "COMPLETED"}
     except Exception as e:
-        print(f"[GitHub Publisher Error] Failed to publish comment: {str(e)}")
-        return False
+        print(f"[GitHub Publisher Error] Failed to publish comment: {e}")
+        return {"status": "PUBLISH_FAILED"}
