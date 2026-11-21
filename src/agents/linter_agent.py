@@ -1,55 +1,44 @@
-﻿import os
+"""Linter & Quality agent: AST lint rules mapped to institutional standards,
+optionally extended with LLM review grounded by RAG."""
+from __future__ import annotations
+
 from typing import Any, Dict, List
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 
-from src.graph.state import CodeReviewState, LintFinding
-from src.rag.vector_store import query_security_standards
+from src.agents.base import run_per_file
+from src.agents.llm import LLMLintReview, llm_enabled, numbered_diff, structured_call
+from src.analysis.diff_parser import build_analysis_unit
+from src.analysis.lint_rules import analyze_quality
+from src.rag.vector_store import retrieve_standards
 
-def linter_node(state: CodeReviewState) -> Dict[str, Any]:
-    print(f"[Agent: Linter & Quality] Checking style and performance for PR #{state['pr_id']}...")
-    findings: List[LintFinding] = []
-    openai_key = os.getenv("OPENAI_API_KEY")
+SYSTEM_PROMPT = (
+    "You are a senior engineer reviewing code quality (readability, performance, error handling, "
+    "maintainability). Only comment on added lines ('+'), use the shown line numbers, do not repeat issues "
+    "already listed, and do not report security issues. Return an empty list if nothing new."
+)
 
-    for file in state.get("files_changed", []):
-        filename = file.get("filename", "")
-        patch = file.get("patch", "")
-        if not patch:
-            continue
 
-        rag_context = query_security_standards(f"Linter standards for {filename}")
-
-        if not openai_key:
-            if "for " in patch and (".execute(" in patch or ".query(" in patch):
-                findings.append({
-                    "file_path": filename,
-                    "line_number": 14,
-                    "issue": "N+1 Database Query Pattern Detected.",
-                    "suggestion": "Fetch related records using bulk queries or eager loading outside the loop."
-                })
-            if "except:" in patch:
-                findings.append({
-                    "file_path": filename,
-                    "line_number": 20,
-                    "issue": "Bare except clause used.",
-                    "suggestion": "Catch specific exceptions (e.g., catching ValueError) to prevent masking bugs."
-                })
-            continue
-
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-        prompt = ChatPromptTemplate.from_template(
-            "You are a Senior Software Engineer conducting code quality linting.\n"
-            "Coding Standards:\n{rag_context}\n\n"
-            "Review this diff for '{filename}':\n```\n{patch}\n```\n"
-            "List issues regarding PEP8, performance, or exceptions."
+def review_file(file: Dict[str, Any]) -> List[Dict[str, Any]]:
+    unit = build_analysis_unit(file["filename"], file.get("patch", ""), file.get("content"))
+    findings = analyze_quality(unit)
+    if llm_enabled() and file.get("patch"):
+        standards = "\n".join(h["text"] for h in retrieve_standards("python coding standards " + file["patch"][:800], 5))
+        known = "\n".join(f"- line {f['line_number']}: {f['issue']}" for f in findings) or "(none)"
+        review = structured_call(
+            LLMLintReview, SYSTEM_PROMPT,
+            f"Coding standards:\n{standards}\n\nAlready reported:\n{known}\n\n"
+            f"File: {file['filename']}\n```diff\n{numbered_diff(file['patch'])}\n```",
         )
-        chain = prompt | llm
-        response = chain.invoke({"rag_context": rag_context, "filename": filename, "patch": patch})
-        findings.append({
-            "file_path": filename,
-            "line_number": 1,
-            "issue": "Code quality review point.",
-            "suggestion": response.content[:200]
-        })
+        if review is not None:
+            for item in review.findings:
+                if item.line_number in unit.changed_lines:
+                    findings.append({
+                        "rule_id": "LLM-QUALITY", "file_path": file["filename"], "line_number": item.line_number,
+                        "severity": item.severity if item.severity in {"error", "warning", "info"} else "warning",
+                        "issue": item.issue, "suggestion": item.suggestion, "standard_refs": [], "source": "llm",
+                    })
+    return findings
 
-    return {"lint_findings": findings}
+
+def linter_node(state: Dict[str, Any]) -> Dict[str, Any]:
+    results, metrics = run_per_file("linter", state.get("files_changed", []), review_file)
+    return {"lint_findings": [f for per_file in results for f in per_file], "metrics": metrics}

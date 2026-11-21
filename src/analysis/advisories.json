@@ -1,0 +1,16 @@
+{
+  "pyyaml": [{"id": "CVE-2020-14343", "fixed_in": "5.4", "severity": "CRITICAL", "summary": "Arbitrary code execution through full_load / FullLoader"}],
+  "requests": [{"id": "CVE-2023-32681", "fixed_in": "2.31.0", "severity": "MEDIUM", "summary": "Proxy-Authorization header leaked to destination on HTTPS redirects"}],
+  "flask": [{"id": "CVE-2023-30861", "fixed_in": "2.2.5", "severity": "HIGH", "summary": "Session cookie may be cached by proxies and served to other users"}],
+  "werkzeug": [{"id": "CVE-2023-25577", "fixed_in": "2.2.3", "severity": "HIGH", "summary": "Unbounded multipart form parts allow denial of service"}],
+  "pyjwt": [{"id": "CVE-2022-29217", "fixed_in": "2.4.0", "severity": "HIGH", "summary": "Algorithm confusion when verifying tokens with public keys"}],
+  "jinja2": [{"id": "CVE-2020-28493", "fixed_in": "2.11.3", "severity": "MEDIUM", "summary": "ReDoS in the urlize filter"}],
+  "urllib3": [{"id": "CVE-2023-43804", "fixed_in": "1.26.17", "severity": "HIGH", "summary": "Cookie header not stripped on cross-origin redirects"}],
+  "pillow": [{"id": "CVE-2022-22817", "fixed_in": "9.0.0", "severity": "CRITICAL", "summary": "ImageMath.eval allows arbitrary expression evaluation"}],
+  "lxml": [{"id": "CVE-2021-43818", "fixed_in": "4.6.5", "severity": "HIGH", "summary": "HTML Cleaner lets crafted script content through (XSS)"}],
+  "cryptography": [{"id": "CVE-2020-36242", "fixed_in": "3.3.2", "severity": "HIGH", "summary": "Integer overflow / buffer overflow in symmetric encryption of large inputs"}],
+  "paramiko": [{"id": "CVE-2022-24302", "fixed_in": "2.10.1", "severity": "MEDIUM", "summary": "Race condition exposes private key file permissions"}],
+  "fastapi": [{"id": "CVE-2024-24762", "fixed_in": "0.109.1", "severity": "HIGH", "summary": "ReDoS in multipart Content-Type parsing (python-multipart)"}],
+  "aiohttp": [{"id": "CVE-2024-23334", "fixed_in": "3.9.2", "severity": "HIGH", "summary": "Directory traversal when follow_symlinks is enabled for static routes"}],
+  "gunicorn": [{"id": "CVE-2024-1135", "fixed_in": "22.0.0", "severity": "HIGH", "summary": "HTTP request smuggling via Transfer-Encoding validation"}]
+}

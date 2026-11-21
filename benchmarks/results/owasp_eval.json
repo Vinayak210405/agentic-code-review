@@ -1,0 +1,473 @@
+{
+  "development": {
+    "full": {
+      "engine": "full",
+      "cases": 62,
+      "vulnerable_cases": 45,
+      "safe_cases": 17,
+      "recall": 1.0,
+      "precision": 1.0,
+      "false_positive_rate": 0.0,
+      "categories_covered": 10,
+      "per_category": {
+        "A01": {
+          "tp": 4,
+          "fn": 0,
+          "fp": 0,
+          "tn": 2,
+          "category": "A01:2021-Broken Access Control",
+          "recall": 1.0,
+          "precision": 1.0
+        },
+        "A02": {
+          "tp": 4,
+          "fn": 0,
+          "fp": 0,
+          "tn": 2,
+          "category": "A02:2021-Cryptographic Failures",
+          "recall": 1.0,
+          "precision": 1.0
+        },
+        "A03": {
+          "tp": 10,
+          "fn": 0,
+          "fp": 0,
+          "tn": 3,
+          "category": "A03:2021-Injection",
+          "recall": 1.0,
+          "precision": 1.0
+        },
+        "A04": {
+          "tp": 3,
+          "fn": 0,
+          "fp": 0,
+          "tn": 2,
+          "category": "A04:2021-Insecure Design",
+          "recall": 1.0,
+          "precision": 1.0
+        },
+        "A05": {
+          "tp": 5,
+          "fn": 0,
+          "fp": 0,
+          "tn": 2,
+          "category": "A05:2021-Security Misconfiguration",
+          "recall": 1.0,
+          "precision": 1.0
+        },
+        "A06": {
+          "tp": 3,
+          "fn": 0,
+          "fp": 0,
+          "tn": 1,
+          "category": "A06:2021-Vulnerable and Outdated Components",
+          "recall": 1.0,
+          "precision": 1.0
+        },
+        "A07": {
+          "tp": 5,
+          "fn": 0,
+          "fp": 0,
+          "tn": 2,
+          "category": "A07:2021-Identification and Authentication Failures",
+          "recall": 1.0,
+          "precision": 1.0
+        },
+        "A08": {
+          "tp": 4,
+          "fn": 0,
+          "fp": 0,
+          "tn": 1,
+          "category": "A08:2021-Software and Data Integrity Failures",
+          "recall": 1.0,
+          "precision": 1.0
+        },
+        "A09": {
+          "tp": 3,
+          "fn": 0,
+          "fp": 0,
+          "tn": 1,
+          "category": "A09:2021-Security Logging and Monitoring Failures",
+          "recall": 1.0,
+          "precision": 1.0
+        },
+        "A10": {
+          "tp": 4,
+          "fn": 0,
+          "fp": 0,
+          "tn": 1,
+          "category": "A10:2021-Server-Side Request Forgery",
+          "recall": 1.0,
+          "precision": 1.0
+        }
+      },
+      "missed": [],
+      "false_alarms": []
+    },
+    "bandit_only": {
+      "engine": "bandit",
+      "cases": 62,
+      "vulnerable_cases": 45,
+      "safe_cases": 17,
+      "recall": 0.4,
+      "precision": 1.0,
+      "false_positive_rate": 0.0,
+      "categories_covered": 7,
+      "per_category": {
+        "A01": {
+          "tp": 0,
+          "fn": 4,
+          "fp": 0,
+          "tn": 2,
+          "category": "A01:2021-Broken Access Control",
+          "recall": 0.0,
+          "precision": 1.0
+        },
+        "A02": {
+          "tp": 2,
+          "fn": 2,
+          "fp": 0,
+          "tn": 2,
+          "category": "A02:2021-Cryptographic Failures",
+          "recall": 0.5,
+          "precision": 1.0
+        },
+        "A03": {
+          "tp": 8,
+          "fn": 2,
+          "fp": 0,
+          "tn": 3,
+          "category": "A03:2021-Injection",
+          "recall": 0.8,
+          "precision": 1.0
+        },
+        "A04": {
+          "tp": 0,
+          "fn": 3,
+          "fp": 0,
+          "tn": 2,
+          "category": "A04:2021-Insecure Design",
+          "recall": 0.0,
+          "precision": 1.0
+        },
+        "A05": {
+          "tp": 2,
+          "fn": 3,
+          "fp": 0,
+          "tn": 2,
+          "category": "A05:2021-Security Misconfiguration",
+          "recall": 0.4,
+          "precision": 1.0
+        },
+        "A06": {
+          "tp": 0,
+          "fn": 3,
+          "fp": 0,
+          "tn": 1,
+          "category": "A06:2021-Vulnerable and Outdated Components",
+          "recall": 0.0,
+          "precision": 1.0
+        },
+        "A07": {
+          "tp": 2,
+          "fn": 3,
+          "fp": 0,
+          "tn": 2,
+          "category": "A07:2021-Identification and Authentication Failures",
+          "recall": 0.4,
+          "precision": 1.0
+        },
+        "A08": {
+          "tp": 2,
+          "fn": 2,
+          "fp": 0,
+          "tn": 1,
+          "category": "A08:2021-Software and Data Integrity Failures",
+          "recall": 0.5,
+          "precision": 1.0
+        },
+        "A09": {
+          "tp": 1,
+          "fn": 2,
+          "fp": 0,
+          "tn": 1,
+          "category": "A09:2021-Security Logging and Monitoring Failures",
+          "recall": 0.333,
+          "precision": 1.0
+        },
+        "A10": {
+          "tp": 1,
+          "fn": 3,
+          "fp": 0,
+          "tn": 1,
+          "category": "A10:2021-Server-Side Request Forgery",
+          "recall": 0.25,
+          "precision": 1.0
+        }
+      },
+      "missed": [
+        "a01-route-no-auth",
+        "a01-flask-no-auth",
+        "a01-path-traversal",
+        "a01-open-redirect",
+        "a02-random-token",
+        "a02-ecb",
+        "a03-js-sqli",
+        "a03-js-innerhtml",
+        "a04-client-price",
+        "a04-client-role",
+        "a04-assert-auth",
+        "a05-django-debug",
+        "a05-cors-wildcard-creds",
+        "a05-yaml-config-debug",
+        "a06-old-pyyaml",
+        "a06-old-requests",
+        "a06-old-pyjwt",
+        "a07-hardcoded-password",
+        "a07-jwt-noverify",
+        "a07-aws-key",
+        "a08-torch-load",
+        "a08-curl-bash",
+        "a09-log-password",
+        "a09-log-token",
+        "a10-requests-user-url",
+        "a10-webhook-param",
+        "a10-js-ssrf"
+      ],
+      "false_alarms": []
+    }
+  },
+  "holdout": {
+    "full": {
+      "engine": "full",
+      "cases": 28,
+      "vulnerable_cases": 20,
+      "safe_cases": 8,
+      "recall": 0.75,
+      "precision": 1.0,
+      "false_positive_rate": 0.0,
+      "categories_covered": 8,
+      "per_category": {
+        "A01": {
+          "tp": 1,
+          "fn": 1,
+          "fp": 0,
+          "tn": 1,
+          "category": "A01:2021-Broken Access Control",
+          "recall": 0.5,
+          "precision": 1.0
+        },
+        "A02": {
+          "tp": 2,
+          "fn": 0,
+          "fp": 0,
+          "tn": 1,
+          "category": "A02:2021-Cryptographic Failures",
+          "recall": 1.0,
+          "precision": 1.0
+        },
+        "A03": {
+          "tp": 3,
+          "fn": 1,
+          "fp": 0,
+          "tn": 2,
+          "category": "A03:2021-Injection",
+          "recall": 0.75,
+          "precision": 1.0
+        },
+        "A04": {
+          "tp": 0,
+          "fn": 1,
+          "fp": 0,
+          "tn": 0,
+          "category": "A04:2021-Insecure Design",
+          "recall": 0.0,
+          "precision": 1.0
+        },
+        "A05": {
+          "tp": 2,
+          "fn": 0,
+          "fp": 0,
+          "tn": 0,
+          "category": "A05:2021-Security Misconfiguration",
+          "recall": 1.0,
+          "precision": 1.0
+        },
+        "A06": {
+          "tp": 0,
+          "fn": 1,
+          "fp": 0,
+          "tn": 1,
+          "category": "A06:2021-Vulnerable and Outdated Components",
+          "recall": 0.0,
+          "precision": 1.0
+        },
+        "A07": {
+          "tp": 3,
+          "fn": 0,
+          "fp": 0,
+          "tn": 1,
+          "category": "A07:2021-Identification and Authentication Failures",
+          "recall": 1.0,
+          "precision": 1.0
+        },
+        "A08": {
+          "tp": 2,
+          "fn": 0,
+          "fp": 0,
+          "tn": 0,
+          "category": "A08:2021-Software and Data Integrity Failures",
+          "recall": 1.0,
+          "precision": 1.0
+        },
+        "A09": {
+          "tp": 1,
+          "fn": 0,
+          "fp": 0,
+          "tn": 1,
+          "category": "A09:2021-Security Logging and Monitoring Failures",
+          "recall": 1.0,
+          "precision": 1.0
+        },
+        "A10": {
+          "tp": 1,
+          "fn": 1,
+          "fp": 0,
+          "tn": 1,
+          "category": "A10:2021-Server-Side Request Forgery",
+          "recall": 0.5,
+          "precision": 1.0
+        }
+      },
+      "missed": [
+        "h-a01-pathlib-traversal",
+        "h-a03-sqli-concat-var",
+        "h-a04-discount-from-body",
+        "h-a06-old-flask-werkzeug",
+        "h-a10-aiohttp"
+      ],
+      "false_alarms": []
+    },
+    "bandit_only": {
+      "engine": "bandit",
+      "cases": 28,
+      "vulnerable_cases": 20,
+      "safe_cases": 8,
+      "recall": 0.2,
+      "precision": 1.0,
+      "false_positive_rate": 0.0,
+      "categories_covered": 3,
+      "per_category": {
+        "A01": {
+          "tp": 0,
+          "fn": 2,
+          "fp": 0,
+          "tn": 1,
+          "category": "A01:2021-Broken Access Control",
+          "recall": 0.0,
+          "precision": 1.0
+        },
+        "A02": {
+          "tp": 1,
+          "fn": 1,
+          "fp": 0,
+          "tn": 1,
+          "category": "A02:2021-Cryptographic Failures",
+          "recall": 0.5,
+          "precision": 1.0
+        },
+        "A03": {
+          "tp": 2,
+          "fn": 2,
+          "fp": 0,
+          "tn": 2,
+          "category": "A03:2021-Injection",
+          "recall": 0.5,
+          "precision": 1.0
+        },
+        "A04": {
+          "tp": 0,
+          "fn": 1,
+          "fp": 0,
+          "tn": 0,
+          "category": "A04:2021-Insecure Design",
+          "recall": 0.0,
+          "precision": 1.0
+        },
+        "A05": {
+          "tp": 0,
+          "fn": 2,
+          "fp": 0,
+          "tn": 0,
+          "category": "A05:2021-Security Misconfiguration",
+          "recall": 0.0,
+          "precision": 1.0
+        },
+        "A06": {
+          "tp": 0,
+          "fn": 1,
+          "fp": 0,
+          "tn": 1,
+          "category": "A06:2021-Vulnerable and Outdated Components",
+          "recall": 0.0,
+          "precision": 1.0
+        },
+        "A07": {
+          "tp": 0,
+          "fn": 3,
+          "fp": 0,
+          "tn": 1,
+          "category": "A07:2021-Identification and Authentication Failures",
+          "recall": 0.0,
+          "precision": 1.0
+        },
+        "A08": {
+          "tp": 1,
+          "fn": 1,
+          "fp": 0,
+          "tn": 0,
+          "category": "A08:2021-Software and Data Integrity Failures",
+          "recall": 0.5,
+          "precision": 1.0
+        },
+        "A09": {
+          "tp": 0,
+          "fn": 1,
+          "fp": 0,
+          "tn": 1,
+          "category": "A09:2021-Security Logging and Monitoring Failures",
+          "recall": 0.0,
+          "precision": 1.0
+        },
+        "A10": {
+          "tp": 0,
+          "fn": 2,
+          "fp": 0,
+          "tn": 1,
+          "category": "A10:2021-Server-Side Request Forgery",
+          "recall": 0.0,
+          "precision": 1.0
+        }
+      },
+      "missed": [
+        "h-a01-django-view",
+        "h-a01-pathlib-traversal",
+        "h-a02-random-otp",
+        "h-a03-sqli-concat-var",
+        "h-a03-render-template-string",
+        "h-a04-discount-from-body",
+        "h-a05-cors-flask",
+        "h-a05-lxml-entities",
+        "h-a06-old-flask-werkzeug",
+        "h-a07-secret-dict",
+        "h-a07-github-token-yaml",
+        "h-a07-jwt-alg-none",
+        "h-a08-joblib",
+        "h-a09-print-card",
+        "h-a10-session-get",
+        "h-a10-aiohttp"
+      ],
+      "false_alarms": []
+    }
+  }
+}
