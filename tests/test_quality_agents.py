@@ -77,15 +77,15 @@ def test_linter_node_returns_metrics():
 def test_generated_tests_compile_and_pass_against_real_code(tmp_path: Path):
     pkg = tmp_path / "pricing"
     pkg.mkdir()
-    (pkg / "__init__.py").write_text("")
-    (pkg / "calc.py").write_text(SAMPLE_MODULE)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "calc.py").write_text(SAMPLE_MODULE, encoding="utf-8")
     result = synthesize_tests(build_analysis_unit("pricing/calc.py", content=SAMPLE_MODULE))
     assert result["compiles"]
     assert set(result["functions_covered"]) >= {"apply_discount", "normalize_username", "Wallet.withdraw"}
     # error-path tests derived from guard clauses
     assert "pytest.raises(ValueError)" in result["test_code"]
     assert "percent=101" in result["test_code"] and "amount=0" in result["test_code"]
-    (tmp_path / "test_generated.py").write_text(result["test_code"])
+    (tmp_path / "test_generated.py").write_text(result["test_code"], encoding="utf-8")
     proc = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "test_generated.py"],
                           cwd=tmp_path, capture_output=True, text=True)
     assert proc.returncode == 0, proc.stdout + proc.stderr
