@@ -1,7 +1,10 @@
-﻿venv/
+venv/
+.venv/
 .env
-checkpoints.sqlite
+*.sqlite
 __pycache__/
 *.pyc
 .pytest_cache/
 .DS_Store
+review.md
+generated_tests/

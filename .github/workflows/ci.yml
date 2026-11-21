@@ -1,32 +1,56 @@
-﻿name: CI/CD Pipeline
+name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
 
 jobs:
-  test-and-lint:
+  test:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Unit & integration tests
+        run: pytest -q
+      - name: Bandit (dogfooding on our own source)
+        run: bandit -r src/ -ll -q
+      - name: Self-scan with the OWASP engine
+        run: python -m src.cli scan src/ main.py config/ --fail-on HIGH
+      - name: OWASP detection benchmark
+        run: python -m scripts.evaluate_owasp
+      - uses: actions/upload-artifact@v4
+        with:
+          name: owasp-eval
+          path: benchmarks/results/owasp_eval.json
 
-    - name: Set up Python 3.12
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.12"
-
-    - name: Install Dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-
-    - name: Run Bandit Security Scanner
-      run: |
-        bandit -r src/ -ll
-
-    - name: Run PyTest Test Suite
-      run: |
-        pytest tests/
+  ai-security-gate:
+    # Runs the multi-agent review on the PR diff and blocks the merge (and
+    # therefore deployment) on CRITICAL/HIGH findings.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Multi-agent review of this PR
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python -m src.cli review --git origin/${{ github.base_ref }}...HEAD \
+            --exclude 'examples/*' 'benchmarks/*' 'tests/*' \
+            --fail-on CRITICAL,HIGH --report review.md --write-tests generated_tests
+      - name: Publish report to job summary
+        if: always()
+        run: test -f review.md && cat review.md >> "$GITHUB_STEP_SUMMARY" || true

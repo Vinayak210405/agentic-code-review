@@ -1,17 +1,23 @@
-﻿fastapi>=0.110.0
+# --- API ---------------------------------------------------------------
+fastapi>=0.110.0
 uvicorn>=0.28.0
 pydantic>=2.6.0
-langgraph>=0.2.0
-langgraph-checkpoint-sqlite>=1.0.0
-langchain-core>=0.3.0
-langchain-openai>=0.1.0
-llama-index-core>=0.10.0
-llama-index-vector-stores-qdrant>=0.2.0
-llama-index-embeddings-openai>=0.1.0
-llama-index-llms-openai>=0.1.0
-PyGithub>=2.2.0
-python-dotenv>=1.0.0
-pytest>=8.0.0
 httpx>=0.27.0
+python-dotenv>=1.0.0
+
+# --- Agent orchestration (LangGraph: Send/fan-out, interrupt(), Command) --
+langgraph>=0.4.0
+langgraph-checkpoint-sqlite>=2.0.0
+langchain-core>=0.3.0
+langchain-openai>=0.2.0
+
+# --- RAG (LlamaIndex) ---------------------------------------------------
+llama-index-core>=0.12.0
+llama-index-embeddings-openai>=0.3.0
+
+# --- Security tooling & integrations -----------------------------------
 bandit>=1.7.8
-langsmith>=0.1.0
+PyGithub>=2.3.0
+
+# --- Dev / test ---------------------------------------------------------
+pytest>=8.0.0

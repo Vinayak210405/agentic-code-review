@@ -1,61 +1,76 @@
-﻿import os
+"""Security Auditor agent: SAST (native OWASP rules + Bandit + SCA) grounded
+with RAG-retrieved institutional standards, optionally extended by an LLM."""
+from __future__ import annotations
+
+import logging
 from typing import Any, Dict, List
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 
-from src.graph.state import CodeReviewState, SecurityFinding
-from src.rag.vector_store import query_security_standards
+from config.settings import get_settings
+from src.agents.base import run_per_file
+from src.agents.llm import LLMSecurityReview, llm_enabled, numbered_diff, structured_call
+from src.analysis.diff_parser import build_analysis_unit
+from src.analysis.findings import OWASP_TOP_10, SEVERITY_ORDER, dedupe_findings, make_finding
+from src.analysis.security_engine import analyze_unit
+from src.rag.vector_store import retrieve_standards
 
-def security_auditor_node(state: CodeReviewState) -> Dict[str, Any]:
-    print(f"\n[Agent: Security Auditor] Scanning PR #{state['pr_id']} diffs...")
-    findings: List[SecurityFinding] = []
-    openai_key = os.getenv("OPENAI_API_KEY")
+logger = logging.getLogger(__name__)
 
-    for file in state.get("files_changed", []):
-        filename = file.get("filename", "")
-        patch = file.get("patch", "")
-        if not patch:
+SYSTEM_PROMPT = (
+    "You are an application security auditor. Review ONLY the added lines (marked '+') of the diff. "
+    "Report vulnerabilities mapped to the OWASP Top 10 (2021) that the static findings below do not already "
+    "cover, especially business-logic and access-control flaws. Use the line numbers shown in the diff. "
+    "Cite the institutional rule ids from the provided standards in the mitigation. "
+    "Return an empty list if there is nothing new. Do not speculate."
+)
+
+
+def attach_standards(finding: Dict[str, Any]) -> Dict[str, Any]:
+    """Ground a finding in institutional standards via vector retrieval."""
+    query = f"{finding.get('title', '')}. {finding.get('description', '')}"
+    hits = [h for h in retrieve_standards(query, 2) if h["score"] > 0.05]
+    finding["standard_refs"] = [{"rule_id": h["rule_id"], "text": h["text"].split("\n", 1)[-1], "score": h["score"]}
+                                for h in hits]
+    return finding
+
+
+def _llm_findings(file: Dict[str, Any], static: List[Dict[str, Any]], changed: set) -> List[Dict[str, Any]]:
+    patch = file.get("patch", "")
+    if not patch:
+        return []
+    context = "\n".join(h["text"] for h in retrieve_standards(patch[:1500], 5))
+    known = "\n".join(f"- line {f['line_number']}: {f['rule_id']} {f['title']}" for f in static) or "(none)"
+    review = structured_call(
+        LLMSecurityReview, SYSTEM_PROMPT,
+        f"Institutional standards:\n{context}\n\nStatic findings already reported:\n{known}\n\n"
+        f"File: {file['filename']}\n```diff\n{numbered_diff(patch)}\n```",
+    )
+    if review is None:
+        return []
+    out = []
+    for item in review.findings:
+        owasp = item.owasp_id.strip().upper()[:3]
+        severity = item.severity.strip().upper()
+        # Hallucination guards: must reference a real added line and a valid category.
+        if owasp not in OWASP_TOP_10 or severity not in SEVERITY_ORDER or item.line_number not in changed:
             continue
+        out.append(make_finding(
+            rule_id=f"LLM-{owasp}", owasp=owasp, cwe=item.cwe or "CWE-unknown", severity=severity,
+            title=item.title, description=item.description, mitigation=item.mitigation,
+            file_path=file["filename"], line_number=item.line_number, source="llm", confidence="MEDIUM",
+        ))
+    return out
 
-        rag_context = query_security_standards(patch)
 
-        if not openai_key:
-            if "f'SELECT" in patch or 'f"SELECT' in patch or ("SELECT " in patch and "+" in patch):
-                findings.append({
-                    "rule_id": "OWASP-A03-SQLi",
-                    "severity": "CRITICAL",
-                    "description": "Potential SQL Injection detected. Dynamic string interpolation in database query.",
-                    "file_path": filename,
-                    "line_number": 11,
-                    "mitigation": "Use parameterized queries or SQLAlchemy ORM bind parameters."
-                })
-            if "eval(" in patch or "exec(" in patch:
-                findings.append({
-                    "rule_id": "OWASP-A03-CodeInj",
-                    "severity": "HIGH",
-                    "description": "Use of unsafe dynamic execution function (eval/exec).",
-                    "file_path": filename,
-                    "line_number": 5,
-                    "mitigation": "Avoid dynamic code execution; use safe parsing libraries."
-                })
-            continue
+def review_file(file: Dict[str, Any]) -> List[Dict[str, Any]]:
+    settings = get_settings()
+    unit = build_analysis_unit(file["filename"], file.get("patch", ""), file.get("content"))
+    findings = analyze_unit(unit, enable_bandit=settings.enable_bandit)
+    if llm_enabled():
+        findings = dedupe_findings(findings + _llm_findings(file, findings, unit.changed_lines))
+    return [attach_standards(f) for f in findings]
 
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-        prompt = ChatPromptTemplate.from_template(
-            "You are an expert Application Security Auditor.\n"
-            "Organizational Security Policy:\n{rag_context}\n\n"
-            "Analyze code diff for '{filename}':\n```\n{patch}\n```\n"
-            "Return findings with severity, rule ID, and mitigation."
-        )
-        chain = prompt | llm
-        response = chain.invoke({"rag_context": rag_context, "filename": filename, "patch": patch})
-        findings.append({
-            "rule_id": "LLM-SEC-01",
-            "severity": "HIGH" if "CRITICAL" in response.content.upper() else "MEDIUM",
-            "description": response.content[:250],
-            "file_path": filename,
-            "line_number": 1,
-            "mitigation": "Refer to inline LLM remediation suggestions."
-        })
 
-    return {"security_findings": findings}
+def security_auditor_node(state: Dict[str, Any]) -> Dict[str, Any]:
+    results, metrics = run_per_file("security_auditor", state.get("files_changed", []), review_file)
+    findings = dedupe_findings(f for per_file in results for f in per_file)
+    return {"security_findings": findings, "metrics": metrics}

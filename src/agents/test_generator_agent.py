@@ -1,52 +1,57 @@
-﻿import os
-from typing import Any, Dict, List
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
+"""Unit Test Generator agent: deterministic signature/guard-driven PyTest
+synthesis, optionally replaced by an LLM-written suite that must compile."""
+from __future__ import annotations
 
-from src.graph.state import CodeReviewState, GeneratedTest
+import ast
+from typing import Any, Dict, List, Optional
 
-def test_generator_node(state: CodeReviewState) -> Dict[str, Any]:
-    print(f"[Agent: Test Generator] Constructing unit tests for PR #{state['pr_id']}...")
-    generated_tests: List[GeneratedTest] = []
-    openai_key = os.getenv("OPENAI_API_KEY")
+from src.agents.base import run_per_file
+from src.agents.llm import LLMTestSuite, llm_enabled, structured_call
+from src.analysis.diff_parser import build_analysis_unit
+from src.analysis.test_synth import synthesize_tests
+from src.rag.vector_store import retrieve_standards
 
-    for file in state.get("files_changed", []):
-        filename = file.get("filename", "")
-        patch = file.get("patch", "")
-        if not patch:
-            continue
+SYSTEM_PROMPT = (
+    "You are a test engineer. Write a complete, runnable PyTest module for the changed functions. Follow the "
+    "testing standards provided. Mock external dependencies. Return only Python code."
+)
 
-        test_file_path = f"tests/test_{os.path.basename(filename)}"
 
-        if not openai_key:
-            test_code = (
-                "import pytest\n\n"
-                f"# Generated test suite for {filename}\n"
-                "def test_modified_function_success():\n"
-                "    assert True\n\n"
-                "def test_modified_function_invalid_input():\n"
-                "    with pytest.raises(ValueError):\n"
-                "        raise ValueError('Invalid argument')\n"
-            )
-            generated_tests.append({
-                "target_file": filename,
-                "test_file_path": test_file_path,
-                "test_code": test_code
-            })
-            continue
+def _compiles(code: str) -> bool:
+    try:
+        ast.parse(code)
+        return True
+    except SyntaxError:
+        return False
 
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
-        prompt = ChatPromptTemplate.from_template(
-            "You are an Automated Test Engineer specializing in PyTest.\n"
-            "Write a complete PyTest module for '{filename}':\n```\n{patch}\n```\n"
-            "Return ONLY executable Python code."
+
+def generate_for_file(file: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    if not file["filename"].endswith(".py") or "/tests/" in f"/{file['filename']}" or \
+            file["filename"].rsplit("/", 1)[-1].startswith("test_"):
+        return None
+    unit = build_analysis_unit(file["filename"], file.get("patch", ""), file.get("content"))
+    synthesized = synthesize_tests(unit)
+    if synthesized is None:
+        return None
+    if llm_enabled():
+        standards = "\n".join(h["text"] for h in retrieve_standards("unit testing standards pytest mock", 4))
+        suite = structured_call(
+            LLMTestSuite, SYSTEM_PROMPT,
+            f"Testing standards:\n{standards}\n\nBaseline generated tests (improve on them):\n"
+            f"```python\n{synthesized['test_code']}\n```\n\nSource under test ({file['filename']}):\n"
+            f"```python\n{file.get('content') or unit.source}\n```",
+            temperature=0.2,
         )
-        chain = prompt | llm
-        response = chain.invoke({"filename": filename, "patch": patch})
-        generated_tests.append({
-            "target_file": filename,
-            "test_file_path": test_file_path,
-            "test_code": response.content
-        })
+        if suite is not None and suite.test_code.strip() and _compiles(suite.test_code):
+            synthesized = {**synthesized, "test_code": suite.test_code, "source": "llm",
+                           "test_count": suite.test_code.count("def test_")}
+    return synthesized
 
-    return {"generated_tests": generated_tests}
+
+def test_generator_node(state: Dict[str, Any]) -> Dict[str, Any]:
+    results, metrics = run_per_file("test_generator", state.get("files_changed", []), generate_for_file)
+    tests: List[Dict[str, Any]] = [r for r in results if r]
+    return {"generated_tests": tests, "metrics": metrics}
+
+
+test_generator_node.__test__ = False  # type: ignore[attr-defined]  # not a pytest test

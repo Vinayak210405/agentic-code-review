@@ -1,0 +1,83 @@
+{
+  "config": {
+    "files": 8,
+    "simulated_llm_latency_s": 1.0,
+    "runs": 3,
+    "provider": "simulated",
+    "file_workers": 4,
+    "llm_max_concurrency": 8
+  },
+  "scenarios": {
+    "baseline": {
+      "mode": "sequential",
+      "FILE_WORKERS": "1",
+      "ENABLE_RESULT_CACHE": "false",
+      "LLM_MAX_CONCURRENCY": "1",
+      "runs_s": [
+        25.265,
+        25.074,
+        25.074
+      ],
+      "median_s": 25.074,
+      "llm_calls": 25
+    },
+    "parallel_agents": {
+      "mode": "parallel",
+      "FILE_WORKERS": "1",
+      "ENABLE_RESULT_CACHE": "false",
+      "LLM_MAX_CONCURRENCY": "8",
+      "runs_s": [
+        8.055,
+        8.047,
+        8.047
+      ],
+      "median_s": 8.047,
+      "llm_calls": 25
+    },
+    "optimized": {
+      "mode": "parallel",
+      "FILE_WORKERS": "4",
+      "ENABLE_RESULT_CACHE": "false",
+      "LLM_MAX_CONCURRENCY": "8",
+      "runs_s": [
+        4.024,
+        4.023,
+        4.026
+      ],
+      "median_s": 4.024,
+      "llm_calls": 25
+    },
+    "baseline_rereview": {
+      "mode": "sequential",
+      "FILE_WORKERS": "1",
+      "ENABLE_RESULT_CACHE": "false",
+      "LLM_MAX_CONCURRENCY": "1",
+      "runs_s": [
+        25.102,
+        25.078,
+        25.077
+      ],
+      "median_s": 25.078,
+      "llm_calls": 25
+    },
+    "optimized_rereview": {
+      "mode": "parallel",
+      "FILE_WORKERS": "4",
+      "ENABLE_RESULT_CACHE": "true",
+      "LLM_MAX_CONCURRENCY": "8",
+      "runs_s": [
+        1.023,
+        1.027,
+        1.034
+      ],
+      "median_s": 1.027,
+      "llm_calls": 7
+    }
+  },
+  "reductions": {
+    "parallel_agents_vs_baseline": 0.679,
+    "optimized_vs_baseline": 0.84,
+    "optimized_rereview_vs_baseline_rereview": 0.959
+  },
+  "static_only_median_s": 0.065
+}
