@@ -9,6 +9,7 @@ Examples (PowerShell or bash):
 from __future__ import annotations
 
 import argparse
+import contextlib
 import fnmatch
 import json
 import os
@@ -116,6 +117,10 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
 
 def main(argv: List[str] | None = None) -> int:
+    for stream in (sys.stdout, sys.stderr):  # Windows consoles/pipes may not be UTF-8
+        if hasattr(stream, "reconfigure"):
+            with contextlib.suppress(ValueError, OSError):
+                stream.reconfigure(errors="replace")
     parser = argparse.ArgumentParser(prog="agentic-review")
     sub = parser.add_subparsers(dest="command", required=True)
 
